@@ -571,18 +571,29 @@ body {
     gap: 1rem;
   }
 
+  .stats-panel {
+    display: contents;
+  }
+
+  .streak-hero {
+    order: -2;
+    width: 100%;
+    padding: 1.25rem 1.25rem;
+  }
+
   .calendar-panel {
     order: -1;
     width: 100%;
   }
 
-  .stats-panel {
+  .stats-grid {
     order: 0;
     width: 100%;
   }
 
-  .streak-hero {
-    padding: 1.25rem 1.25rem;
+  .notes-section {
+    order: 1;
+    width: 100%;
   }
 
   .streak-value {
