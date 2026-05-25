@@ -422,12 +422,37 @@ body {
   transform: scale(0.92);
 }
 
-.day-btn.past {
+.day-btn.past,
+.day-btn.locked {
   cursor: not-allowed;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .day-btn.past:not(.completed):not(.skipped) .day-face.front {
   opacity: 0.4;
+}
+
+/* Locked past days keep their green/red state at full strength */
+.day-btn.past.completed,
+.day-btn.past.skipped,
+.day-btn.locked.completed,
+.day-btn.locked.skipped {
+  opacity: 1;
+}
+
+.day-btn.past.completed .day-inner,
+.day-btn.past.skipped .day-inner,
+.day-btn.locked.completed .day-inner,
+.day-btn.locked.skipped .day-inner {
+  transform: rotateY(180deg);
+}
+
+.day-btn.past.skipped .day-face.back,
+.day-btn.locked.skipped .day-face.back {
+  background: linear-gradient(145deg, var(--miss) 0%, var(--miss-dark) 100%);
+  box-shadow: 0 4px 20px var(--miss-glow), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .day-inner {
@@ -495,7 +520,7 @@ body {
   font-weight: 700;
 }
 
-.day-btn.skipped:not(:disabled):hover .day-face.front {
+.day-btn.skipped:not(.past):not(.locked):hover .day-face.front {
   background: rgba(239, 68, 68, 0.08);
   border-color: rgba(239, 68, 68, 0.35);
 }

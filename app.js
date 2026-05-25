@@ -95,29 +95,56 @@ function parseKey(key) {
   return new Date(y, m - 1, d);
 }
 
-function isPast(year, month, day) {
-  const cell = new Date(year, month, day);
+function getCalendarToday() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+function isPast(year, month, day) {
+  const cell = new Date(year, month, day);
   cell.setHours(0, 0, 0, 0);
-  return cell < today;
+  return cell < getCalendarToday();
 }
 
 function isFuture(year, month, day) {
   const cell = new Date(year, month, day);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
   cell.setHours(0, 0, 0, 0);
-  return cell > today;
+  return cell > getCalendarToday();
 }
 
 function isToday(year, month, day) {
-  const now = new Date();
+  const today = getCalendarToday();
   return (
-    now.getFullYear() === year &&
-    now.getMonth() === month &&
-    now.getDate() === day
+    today.getFullYear() === year &&
+    today.getMonth() === month &&
+    today.getDate() === day
   );
+}
+
+function isPastKey(key) {
+  const d = parseKey(key);
+  return isPast(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/** Past days are frozen — green or red, never tappable */
+function lockPastDay(btn) {
+  btn.classList.add("past", "locked");
+  btn.disabled = true;
+  btn.setAttribute("aria-disabled", "true");
+  btn.tabIndex = -1;
+}
+
+function getDayAriaLabel(monthName, day, { completed, skipped, past, future }) {
+  if (past) {
+    if (completed) return `${monthName} ${day}, completed, locked`;
+    if (skipped) return `${monthName} ${day}, skipped, locked`;
+    return `${monthName} ${day}, locked`;
+  }
+  if (completed) return `${monthName} ${day}, completed`;
+  if (skipped) return `${monthName} ${day}, skipped`;
+  if (future) return `${monthName} ${day}, future`;
+  return `${monthName} ${day}, not completed`;
 }
 
 let skippedKeys = new Set();
@@ -279,24 +306,20 @@ function renderCalendar() {
     btn.className = "day-btn";
     if (completed) btn.classList.add("completed");
     else if (skipped) btn.classList.add("skipped");
-    if (today) btn.classList.add("today");
+    if (today && !past) btn.classList.add("today");
     if (future) btn.classList.add("future");
-    if (past) {
-      btn.classList.add("past");
-      btn.disabled = true;
-    }
+    if (past) lockPastDay(btn);
 
-    const status = completed
-      ? "completed"
-      : skipped
-        ? "skipped"
-        : past
-          ? "locked"
-          : future
-            ? "future"
-            : "not completed";
-    btn.setAttribute("aria-label", `${monthNames[viewMonth]} ${day}, ${status}`);
-    btn.setAttribute("aria-pressed", completed);
+    btn.setAttribute(
+      "aria-label",
+      getDayAriaLabel(monthNames[viewMonth], day, {
+        completed,
+        skipped,
+        past,
+        future,
+      })
+    );
+    btn.setAttribute("aria-pressed", completed ? "true" : "false");
 
     btn.innerHTML = `
       <div class="day-inner">
@@ -315,7 +338,7 @@ function renderCalendar() {
 }
 
 function toggleDay(key) {
-  if (toggleLock) return;
+  if (toggleLock || isPastKey(key)) return;
   toggleLock = true;
   setTimeout(() => {
     toggleLock = false;
@@ -434,6 +457,30 @@ els.nextMonth.addEventListener("click", () => {
   scrollToCalendarOnMobile();
 });
 
+/** Re-draw calendar when the date changes (e.g. tab open overnight) */
+function refreshForNewDay() {
+  renderCalendar();
+  updateStats();
+}
+
+function scheduleMidnightRefresh() {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setDate(midnight.getDate() + 1);
+  midnight.setHours(0, 0, 0, 0);
+  setTimeout(() => {
+    refreshForNewDay();
+    scheduleMidnightRefresh();
+  }, midnight - now);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") refreshForNewDay();
+});
+
+window.addEventListener("pageshow", () => refreshForNewDay());
+
 renderCalendar();
 updateStats();
 loadNotesForView();
+scheduleMidnightRefresh();
