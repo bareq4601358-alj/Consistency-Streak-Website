@@ -1,4 +1,5 @@
-const STORAGE_KEY = "streak-marker-days";
+const STORAGE_KEY = "streak-marker-days-v3";
+const LEGACY_STORAGE_KEY = "streak-marker-days";
 const NOTES_STORAGE_KEY = "streak-marker-notes";
 const MS_DAY = 86400000;
 
@@ -30,22 +31,37 @@ let notesSavedTimer = null;
 let toggleLock = false;
 let skippedKeys = new Set();
 
+function parseCompletedArray(arr) {
+  const valid = new Set();
+  if (!Array.isArray(arr)) return valid;
+  for (const key of arr) {
+    if (typeof key !== "string") continue;
+    const d = parseKey(key);
+    if (Number.isNaN(d.getTime())) continue;
+    const normalized = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+    if (key === normalized) valid.add(normalized);
+  }
+  return valid;
+}
+
 function loadCompleted() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return new Set();
+    if (raw) return parseCompletedArray(JSON.parse(raw));
 
-    const valid = new Set();
-    for (const key of arr) {
-      if (typeof key !== "string") continue;
-      const d = parseKey(key);
-      if (Number.isNaN(d.getTime())) continue;
-      const normalized = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
-      if (key === normalized) valid.add(normalized);
+    const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!legacyRaw) return new Set();
+
+    const legacy = parseCompletedArray(JSON.parse(legacyRaw));
+    const isLocal =
+      location.hostname === "localhost" || location.hostname === "127.0.0.1";
+
+    if (isLocal && legacy.size > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...legacy]));
+      return legacy;
     }
-    return valid;
+
+    return new Set();
   } catch {
     return new Set();
   }
@@ -442,6 +458,11 @@ document.addEventListener("visibilitychange", () => {
 
 window.addEventListener("pageshow", () => refreshForNewDay());
 
+function cleanupLegacyStorage() {
+  localStorage.removeItem("streak-marker-gap-dismissed");
+  localStorage.removeItem("streak-marker-data-version");
+}
+
 function init() {
   const missing = Object.entries(els).filter(([, el]) => !el);
   if (missing.length) {
@@ -449,9 +470,7 @@ function init() {
     return;
   }
 
-  localStorage.removeItem("streak-marker-gap-dismissed");
-  localStorage.removeItem("streak-marker-data-version");
-
+  cleanupLegacyStorage();
   renderCalendar();
   updateStats();
   loadNotesForView();
