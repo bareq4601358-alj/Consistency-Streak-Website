@@ -1,6 +1,8 @@
 const STORAGE_KEY = "streak-marker-days";
 const GAP_DISMISSED_KEY = "streak-marker-gap-dismissed";
 const NOTES_STORAGE_KEY = "streak-marker-notes";
+const DATA_VERSION_KEY = "streak-marker-data-version";
+const DATA_VERSION = 2;
 
 let completedDays = loadCompleted();
 let gapDismissedDays = loadGapDismissed();
@@ -160,6 +162,20 @@ function isToday(year, month, day) {
   );
 }
 
+function isFutureKey(key) {
+  const d = parseKey(key);
+  d.setHours(0, 0, 0, 0);
+  return d > getCalendarToday();
+}
+
+function isOnOrBeforeTodayKey(key) {
+  return !isFutureKey(key);
+}
+
+function getCompletedThroughToday() {
+  return [...completedDays].filter(isOnOrBeforeTodayKey);
+}
+
 function getDayAriaLabel(monthName, day, { completed, skipped, past, future }) {
   if (completed) return `${monthName} ${day}, completed${past ? ", past" : ""}`;
   if (skipped) return `${monthName} ${day}, missed day${past ? ", past" : ""}`;
@@ -195,7 +211,9 @@ function computeSkippedKeys() {
           cursor.getMonth(),
           cursor.getDate()
         );
-        if (!gapDismissedDays.has(gapKey)) skipped.add(gapKey);
+        if (!gapDismissedDays.has(gapKey) && !isFutureKey(gapKey)) {
+          skipped.add(gapKey);
+        }
         cursor.setDate(cursor.getDate() + 1);
       }
     }
@@ -210,12 +228,11 @@ function isSkipped(year, month, day) {
 }
 
 /** Split marked days into separate streaks whenever a day is skipped (gap > 1 day) */
-function getStreakSegments() {
-  if (completedDays.size === 0) return [];
+function getStreakSegments({ throughToday = false } = {}) {
+  const keys = throughToday ? getCompletedThroughToday() : [...completedDays];
+  if (keys.length === 0) return [];
 
-  const sorted = [...completedDays]
-    .map(parseKey)
-    .sort((a, b) => a - b);
+  const sorted = keys.map(parseKey).sort((a, b) => a - b);
 
   const MS_DAY = 86400000;
   const segments = [[sorted[0]]];
@@ -238,22 +255,20 @@ function getStreakSegments() {
  * Skip a day (gap) → that run ends; the next greens start a new run (e.g. 28–29 = 2).
  */
 function calcCurrentStreak() {
-  if (completedDays.size === 0) return 0;
+  if (getCompletedThroughToday().length === 0) return 0;
 
   computeSkippedKeys();
-  const segments = getStreakSegments();
+  const segments = getStreakSegments({ throughToday: true });
   if (segments.length === 0) return 0;
 
   return segments[segments.length - 1].length;
 }
 
-
 function calcBestStreak() {
-  if (completedDays.size === 0) return 0;
+  const keys = getCompletedThroughToday();
+  if (keys.length === 0) return 0;
 
-  const sorted = [...completedDays]
-    .map(parseKey)
-    .sort((a, b) => a - b);
+  const sorted = keys.map(parseKey).sort((a, b) => a - b);
 
   let best = 1;
   let current = 1;
@@ -525,6 +540,30 @@ document.addEventListener("visibilitychange", () => {
 
 window.addEventListener("pageshow", () => refreshForNewDay());
 
+/** One-time cleanup: old data with future marks caused false streaks and red days */
+function migrateStorage() {
+  if (localStorage.getItem(DATA_VERSION_KEY) === String(DATA_VERSION)) return;
+
+  let changed = false;
+  for (const key of [...completedDays]) {
+    if (isFutureKey(key)) {
+      completedDays.delete(key);
+      changed = true;
+    }
+  }
+  for (const key of [...gapDismissedDays]) {
+    if (isFutureKey(key)) {
+      gapDismissedDays.delete(key);
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveCompleted();
+    saveGapDismissed();
+  }
+  localStorage.setItem(DATA_VERSION_KEY, String(DATA_VERSION));
+}
+
 function init() {
   const missing = Object.entries(els).filter(([, el]) => !el);
   if (missing.length) {
@@ -532,6 +571,7 @@ function init() {
     return;
   }
 
+  migrateStorage();
   renderCalendar();
   updateStats();
   loadNotesForView();
