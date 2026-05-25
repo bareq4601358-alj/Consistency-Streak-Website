@@ -31,14 +31,30 @@ let toggleLock = false;
 function loadCompleted() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return new Set();
+
+    const valid = new Set();
+    for (const key of arr) {
+      if (typeof key !== "string") continue;
+      const d = parseKey(key);
+      if (Number.isNaN(d.getTime())) continue;
+      const normalized = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+      if (key === normalized) valid.add(normalized);
+    }
+    return valid;
   } catch {
     return new Set();
   }
 }
 
 function saveCompleted() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...completedDays]));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...completedDays]));
+  } catch {
+    showToast("Could not save — storage may be full");
+  }
 }
 
 function monthNotesKey(year, month) {
@@ -55,7 +71,11 @@ function loadNotes() {
 }
 
 function saveNotes() {
-  localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notesByMonth));
+  try {
+    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notesByMonth));
+  } catch {
+    showToast("Could not save notes — storage may be full");
+  }
 }
 
 function loadNotesForView() {
@@ -122,26 +142,10 @@ function isToday(year, month, day) {
   );
 }
 
-function isPastKey(key) {
-  const d = parseKey(key);
-  return isPast(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-/** Past days are frozen — green or red, never tappable */
-function lockPastDay(btn) {
-  btn.classList.add("past", "locked");
-  btn.disabled = true;
-  btn.setAttribute("aria-disabled", "true");
-  btn.tabIndex = -1;
-}
-
 function getDayAriaLabel(monthName, day, { completed, skipped, past, future }) {
-  if (past) {
-    if (completed) return `${monthName} ${day}, completed, locked`;
-    if (skipped) return `${monthName} ${day}, skipped, locked`;
-    return `${monthName} ${day}, locked`;
-  }
-  if (completed) return `${monthName} ${day}, completed`;
+  if (completed) return `${monthName} ${day}, completed${past ? ", past" : ""}`;
+  if (skipped) return `${monthName} ${day}, skipped${past ? ", past" : ""}`;
+  if (past) return `${monthName} ${day}, past`;
   if (skipped) return `${monthName} ${day}, skipped`;
   if (future) return `${monthName} ${day}, future`;
   return `${monthName} ${day}, not completed`;
@@ -234,9 +238,11 @@ function calcBestStreak() {
   let best = 1;
   let current = 1;
 
+  const MS_DAY = 86400000;
+
   for (let i = 1; i < sorted.length; i++) {
-    const diff = (sorted[i] - sorted[i - 1]) / (1000 * 60 * 60 * 24);
-    if (diff === 1) {
+    const daysBetween = Math.round((sorted[i] - sorted[i - 1]) / MS_DAY);
+    if (daysBetween === 1) {
       current++;
       best = Math.max(best, current);
     } else {
@@ -308,7 +314,7 @@ function renderCalendar() {
     else if (skipped) btn.classList.add("skipped");
     if (today && !past) btn.classList.add("today");
     if (future) btn.classList.add("future");
-    if (past) lockPastDay(btn);
+    if (past) btn.classList.add("past");
 
     btn.setAttribute(
       "aria-label",
@@ -328,9 +334,7 @@ function renderCalendar() {
       </div>
     `;
 
-    if (!past) {
-      btn.addEventListener("click", () => toggleDay(key));
-    }
+    btn.addEventListener("click", () => toggleDay(key));
 
     cell.appendChild(btn);
     els.calendarGrid.appendChild(cell);
@@ -338,7 +342,7 @@ function renderCalendar() {
 }
 
 function toggleDay(key) {
-  if (toggleLock || isPastKey(key)) return;
+  if (toggleLock) return;
   toggleLock = true;
   setTimeout(() => {
     toggleLock = false;
@@ -354,7 +358,7 @@ function toggleDay(key) {
     updateStats();
     const streakAfter = calcCurrentStreak();
     if (streakBefore > 0 && streakAfter === 0) {
-      showToast("Streak broken — skipped day resets to zero");
+      showToast("Streak is now zero");
     } else {
       showToast("Day unchecked");
     }
@@ -458,7 +462,13 @@ els.nextMonth.addEventListener("click", () => {
 });
 
 /** Re-draw calendar when the date changes (e.g. tab open overnight) */
-function refreshForNewDay() {
+function refreshForNewDay({ goToCurrentMonth = false } = {}) {
+  if (goToCurrentMonth) {
+    const today = getCalendarToday();
+    viewYear = today.getFullYear();
+    viewMonth = today.getMonth();
+    loadNotesForView();
+  }
   renderCalendar();
   updateStats();
 }
@@ -469,7 +479,7 @@ function scheduleMidnightRefresh() {
   midnight.setDate(midnight.getDate() + 1);
   midnight.setHours(0, 0, 0, 0);
   setTimeout(() => {
-    refreshForNewDay();
+    refreshForNewDay({ goToCurrentMonth: true });
     scheduleMidnightRefresh();
   }, midnight - now);
 }
@@ -480,7 +490,17 @@ document.addEventListener("visibilitychange", () => {
 
 window.addEventListener("pageshow", () => refreshForNewDay());
 
-renderCalendar();
-updateStats();
-loadNotesForView();
-scheduleMidnightRefresh();
+function init() {
+  const missing = Object.entries(els).filter(([, el]) => !el);
+  if (missing.length) {
+    console.error("Streak: missing elements", missing.map(([k]) => k));
+    return;
+  }
+
+  renderCalendar();
+  updateStats();
+  loadNotesForView();
+  scheduleMidnightRefresh();
+}
+
+init();
