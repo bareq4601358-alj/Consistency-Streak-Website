@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Streak — Daily Wins</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="ambient" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <header class="header">
+    <div class="logo">
+      <span class="logo-mark">◆</span>
+      <span class="logo-text">Streak</span>
+    </div>
+    <p class="tagline">One tap. One win. Every day.</p>
+  </header>
+
+  <main class="app">
+    <aside class="stats-panel">
+      <div class="streak-hero" id="streakHero">
+        <div class="streak-flame" aria-hidden="true">🔥</div>
+        <div class="streak-content">
+          <span class="streak-label">Current streak</span>
+          <div class="streak-value-wrap">
+            <span class="streak-value" id="streakCount">0</span>
+            <span class="streak-unit" id="streakUnit">days</span>
+          </div>
+          <p class="streak-message" id="streakMessage">Mark today to start your streak</p>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-value" id="monthCompleted">0</span>
+          <span class="stat-label">This month</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="bestStreak">0</span>
+          <span class="stat-label">Best streak</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="totalCompleted">0</span>
+          <span class="stat-label">All time</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="monthRate">0%</span>
+          <span class="stat-label">Completion</span>
+        </div>
+      </div>
+
+      <div class="progress-section">
+        <div class="progress-header">
+          <span>Monthly progress</span>
+          <span id="progressText">0 / 0</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+
+      <div class="notes-section">
+        <label class="notes-header" for="notesInput">Notes</label>
+        <textarea
+          id="notesInput"
+          class="notes-input"
+          placeholder="Goals, reflections, or reminders for this month…"
+          rows="4"
+        ></textarea>
+        <span class="notes-saved" id="notesSaved" aria-live="polite"></span>
+      </div>
+    </aside>
+
+    <section class="calendar-panel">
+      <div class="calendar-header">
+        <button class="nav-btn" id="prevMonth" aria-label="Previous month">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <h2 class="month-title" id="monthTitle">May 2026</h2>
+        <button class="nav-btn" id="nextMonth" aria-label="Next month">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+
+      <div class="weekdays">
+        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+      </div>
+
+      <div class="calendar-grid" id="calendarGrid" role="grid" aria-label="Monthly calendar"></div>
+
+      <p class="calendar-hint">Tap days in a row to build your streak — skip one (leave a gap) and the next marks start a new streak</p>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
