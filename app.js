@@ -1,7 +1,9 @@
 const STORAGE_KEY = "streak-marker-days";
+const GAP_DISMISSED_KEY = "streak-marker-gap-dismissed";
 const NOTES_STORAGE_KEY = "streak-marker-notes";
 
 let completedDays = loadCompleted();
+let gapDismissedDays = loadGapDismissed();
 let viewYear = new Date().getFullYear();
 let viewMonth = new Date().getMonth();
 
@@ -29,8 +31,20 @@ let notesSavedTimer = null;
 let toggleLock = false;
 
 function loadCompleted() {
+  return loadDateKeySet(STORAGE_KEY);
+}
+
+function saveCompleted() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...completedDays]));
+  } catch {
+    showToast("Could not save — storage may be full");
+  }
+}
+
+function loadDateKeySet(storageKey) {
+  try {
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return new Set();
     const arr = JSON.parse(raw);
     if (!Array.isArray(arr)) return new Set();
@@ -49,9 +63,13 @@ function loadCompleted() {
   }
 }
 
-function saveCompleted() {
+function loadGapDismissed() {
+  return loadDateKeySet(GAP_DISMISSED_KEY);
+}
+
+function saveGapDismissed() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...completedDays]));
+    localStorage.setItem(GAP_DISMISSED_KEY, JSON.stringify([...gapDismissedDays]));
   } catch {
     showToast("Could not save — storage may be full");
   }
@@ -144,9 +162,8 @@ function isToday(year, month, day) {
 
 function getDayAriaLabel(monthName, day, { completed, skipped, past, future }) {
   if (completed) return `${monthName} ${day}, completed${past ? ", past" : ""}`;
-  if (skipped) return `${monthName} ${day}, skipped${past ? ", past" : ""}`;
+  if (skipped) return `${monthName} ${day}, missed day${past ? ", past" : ""}`;
   if (past) return `${monthName} ${day}, past`;
-  if (skipped) return `${monthName} ${day}, skipped`;
   if (future) return `${monthName} ${day}, future`;
   return `${monthName} ${day}, not completed`;
 }
@@ -173,9 +190,12 @@ function computeSkippedKeys() {
       const cursor = new Date(sorted[i]);
       cursor.setDate(cursor.getDate() + 1);
       while (cursor < sorted[i + 1]) {
-        skipped.add(
-          dateKey(cursor.getFullYear(), cursor.getMonth(), cursor.getDate())
+        const gapKey = dateKey(
+          cursor.getFullYear(),
+          cursor.getMonth(),
+          cursor.getDate()
         );
+        if (!gapDismissedDays.has(gapKey)) skipped.add(gapKey);
         cursor.setDate(cursor.getDate() + 1);
       }
     }
@@ -348,12 +368,16 @@ function toggleDay(key) {
     toggleLock = false;
   }, 450);
 
+  computeSkippedKeys();
   const wasCompleted = completedDays.has(key);
+  const wasSkipped = skippedKeys.has(key);
   const streakBefore = calcCurrentStreak();
 
   if (wasCompleted) {
     completedDays.delete(key);
+    gapDismissedDays.add(key);
     saveCompleted();
+    saveGapDismissed();
     renderCalendar();
     updateStats();
     const streakAfter = calcCurrentStreak();
@@ -365,8 +389,19 @@ function toggleDay(key) {
     return;
   }
 
+  if (wasSkipped) {
+    gapDismissedDays.add(key);
+    saveGapDismissed();
+    renderCalendar();
+    updateStats();
+    showToast("Day cleared");
+    return;
+  }
+
   completedDays.add(key);
+  gapDismissedDays.delete(key);
   saveCompleted();
+  saveGapDismissed();
   renderCalendar();
   updateStats();
 
